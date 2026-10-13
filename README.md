@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # STM32G474 HC-SR04 + SSD1315 test
 
 STM32CubeIDE/HAL test project for an STM32G474VET6 board, an HC-SR04
@@ -34,3 +35,7 @@ timing required by the HC-SR04 trigger and echo pulse.
 Commit the source code, `Drivers`, `.ioc`, linker scripts and CubeIDE project
 files. Build products under `Debug` and `Release` are intentionally ignored.
 
+=======
+# Car_easy
+电设任务1：超声追踪小车
+>>>>>>> 0ac7aa027d74bd10026d37482ad28ff0df2f3e0e

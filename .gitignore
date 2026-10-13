@@ -1,0 +1,12 @@
+# STM32CubeIDE build output
+Debug/
+Release/
+
+# Eclipse workspace metadata and local state
+.metadata/
+*.log
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
