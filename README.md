@@ -39,8 +39,8 @@ OLED 驱动会自动探测 7 位 I2C 地址 `0x3C` 和 `0x3D`。USART1 保留为
 3. 将 ST-LINK 连接到开发板 SWD 接口。
 4. 点击 **Run**，完成编译、下载和复位。
 
-工程使用 STM32 HAL API 完成 GPIO、I2C、UART、系统时间和外设初始化。DWT 周期计数器
-仅用于满足 HC-SR04 所需的微秒级触发和回波计时。
+工程使用 STM32 HAL API 完成 GPIO、I2C、UART、定时器和系统时间管理。HC-SR04 的 ECHO
+接入 TIM2 PWM Input：CH1 捕获上升沿，CH2 捕获下降沿，1 MHz 计数器直接得到脉宽微秒数。
 
 ## Git 仓库
 

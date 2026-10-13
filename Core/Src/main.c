@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -268,7 +269,7 @@ static void App_RunStartupSelfTest(void)
 static void App_Init(void)
 {
   static const char banner[] =
-      "\r\nHC-SR04 GPIO test ready (USART1 9600 8N1)\r\n";
+      "\r\nHC-SR04 PWM input test ready (USART1 9600 8N1)\r\n";
 
   (void)HAL_UART_Transmit(&huart1, (const uint8_t *)banner,
                           (uint16_t)(sizeof(banner) - 1U),
@@ -387,6 +388,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C3_Init();
+  MX_TIM2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   App_Init();
