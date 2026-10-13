@@ -58,6 +58,22 @@ void HCSR04_Init(void)
   cycle_counter_ready = HCSR04_CycleCounterInit();
 }
 
+HCSR04_Status HCSR04_SelfTest(void)
+{
+  if (cycle_counter_ready == 0U)
+  {
+    return HCSR04_TIMER_ERROR;
+  }
+
+  if ((HAL_GPIO_ReadPin(ECHO_GPIO_Port, ECHO_Pin) == GPIO_PIN_SET) &&
+      (HCSR04_WaitWhile(GPIO_PIN_SET, 2000U) == 0U))
+  {
+    return HCSR04_ECHO_STUCK_HIGH;
+  }
+
+  return HCSR04_OK;
+}
+
 HCSR04_Result HCSR04_Measure(void)
 {
   HCSR04_Result result = {HCSR04_TIMER_ERROR, 0U, 0U};

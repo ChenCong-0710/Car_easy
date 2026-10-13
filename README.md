@@ -1,12 +1,10 @@
-<<<<<<< HEAD
-# STM32G474 HC-SR04 + SSD1315 test
+# Car_easy
 
-STM32CubeIDE/HAL test project for an STM32G474VET6 board, an HC-SR04
-ultrasonic module and a 128 x 64 I2C OLED using an SSD1315 controller.
+电设任务 1：基于 STM32G474VET6、HC-SR04 和 SSD1315 OLED 的超声追踪小车测试工程。
 
-## Connections
+## 接线
 
-| Module | Signal | STM32 pin |
+| 模块 | 信号 | STM32 引脚 |
 | --- | --- | --- |
 | HC-SR04 | TRIG | PA1 |
 | HC-SR04 | ECHO | PA0 |
@@ -15,27 +13,36 @@ ultrasonic module and a 128 x 64 I2C OLED using an SSD1315 controller.
 | OLED | VCC | 3.3 V |
 | OLED | GND | GND |
 
-The OLED driver automatically probes the 7-bit addresses `0x3C` and `0x3D`.
-Measurements are refreshed every 200 ms. USART1 output on PA9/PA10 at 9600
-baud is retained as an optional diagnostic channel.
+OLED 驱动会自动探测 7 位 I2C 地址 `0x3C` 和 `0x3D`。USART1 保留为备用调试接口，
+使用 PA9/PA10、9600 baud、8N1。
 
-## Build and flash
+## OLED 页面
 
-1. Import or open this directory in STM32CubeIDE.
-2. Select the `Debug` build configuration.
-3. Connect ST-LINK to the SWD interface.
-4. Press **Run** to build, download and reset the target.
+复位后先显示基础硬件自检页。自检通过后，`STATUS: OK` 保持约 1 秒，屏幕空白约
+200 ms，然后进入实时测距页。测距数据每 200 ms 更新一次。
 
-The application uses STM32 HAL APIs for GPIO, I2C, UART, timing and peripheral
-initialization. The DWT cycle counter is used only to obtain the microsecond
-timing required by the HC-SR04 trigger and echo pulse.
+实时状态使用未取整的毫米值判断：
 
-## Repository contents
+| 距离 | STATE |
+| --- | --- |
+| 小于等于 3.0 cm | `--` |
+| 大于 3.0 cm、小于 15.0 cm | `CLOSE` |
+| 大于等于 15.0 cm、小于 25.0 cm | `OK` |
+| 大于等于 25.0 cm、小于 50.0 cm | `FAR` |
+| 大于等于 50.0 cm、小于等于 100.0 cm | `FIND` |
+| 大于 100.0 cm 或测量错误 | `--` |
 
-Commit the source code, `Drivers`, `.ioc`, linker scripts and CubeIDE project
-files. Build products under `Debug` and `Release` are intentionally ignored.
+## 编译与烧录
 
-=======
-# Car_easy
-电设任务1：超声追踪小车
->>>>>>> 0ac7aa027d74bd10026d37482ad28ff0df2f3e0e
+1. 在 STM32CubeIDE 中导入或打开本目录。
+2. 选择 `Debug` 构建配置。
+3. 将 ST-LINK 连接到开发板 SWD 接口。
+4. 点击 **Run**，完成编译、下载和复位。
+
+工程使用 STM32 HAL API 完成 GPIO、I2C、UART、系统时间和外设初始化。DWT 周期计数器
+仅用于满足 HC-SR04 所需的微秒级触发和回波计时。
+
+## Git 仓库
+
+提交源代码、`Drivers`、`.ioc`、链接脚本和 CubeIDE 工程文件。`Debug`、`Release`
+目录中的编译产物已通过 `.gitignore` 排除。

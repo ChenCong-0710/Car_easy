@@ -25,6 +25,7 @@ typedef struct
 } HCSR04_Result;
 
 void HCSR04_Init(void);
+HCSR04_Status HCSR04_SelfTest(void);
 HCSR04_Result HCSR04_Measure(void);
 
 #ifdef __cplusplus

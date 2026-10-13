@@ -38,6 +38,8 @@
 /* USER CODE BEGIN PD */
 #define APP_MEASUREMENT_PERIOD_MS  200U
 #define APP_OLED_RETRY_PERIOD_MS  1000U
+#define APP_SELF_TEST_OK_TIME_MS   1000U
+#define APP_PAGE_FLASH_TIME_MS      200U
 #define APP_UART_TIMEOUT_MS         100U
 /* USER CODE END PD */
 
@@ -60,30 +62,64 @@ static void App_Init(void);
 static void App_Process(void);
 static void App_SendUartResult(const HCSR04_Result *measurement);
 static void App_UpdateOled(const HCSR04_Result *measurement);
-static const char *App_GetStatusText(HCSR04_Status status);
+static void App_RunStartupSelfTest(void);
+static uint8_t App_ShowSelfTestPage(HCSR04_Status sensor_status,
+                                    uint8_t checking);
+static const char *App_GetSensorStatusText(HCSR04_Status status);
+static const char *App_GetTrackingState(const HCSR04_Result *measurement);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 /**
-  * @brief  Converts a measurement status to a display string.
+  * @brief  Converts the sensor self-test status to a display string.
   */
-static const char *App_GetStatusText(HCSR04_Status status)
+static const char *App_GetSensorStatusText(HCSR04_Status status)
 {
   switch (status)
   {
     case HCSR04_OK:
-      return "STATUS: OK";
+      return "SENSOR: OK";
     case HCSR04_TIMEOUT:
-      return "STATUS: NO ECHO";
     case HCSR04_OUT_OF_RANGE:
-      return "STATUS: OUT RANGE";
+      return "SENSOR: ERROR";
     case HCSR04_ECHO_STUCK_HIGH:
-      return "STATUS: ECHO HIGH";
+      return "SENSOR: ECHO HIGH";
     case HCSR04_TIMER_ERROR:
     default:
-      return "STATUS: TIMER ERR";
+      return "SENSOR: TIMER ERR";
   }
+}
+
+/**
+  * @brief  Classifies the latest valid distance for the tracking task.
+  */
+static const char *App_GetTrackingState(const HCSR04_Result *measurement)
+{
+  if ((measurement == NULL) || (measurement->status != HCSR04_OK))
+  {
+    return "--";
+  }
+
+  if ((measurement->distance_mm <= 30U) ||
+      (measurement->distance_mm > 1000U))
+  {
+    return "--";
+  }
+  if (measurement->distance_mm < 150U)
+  {
+    return "CLOSE";
+  }
+  if (measurement->distance_mm < 250U)
+  {
+    return "OK";
+  }
+  if (measurement->distance_mm < 500U)
+  {
+    return "FAR";
+  }
+
+  return "FIND";
 }
 
 /**
@@ -94,6 +130,7 @@ static uint8_t App_ShowMeasurement(const HCSR04_Result *measurement)
 {
   char distance_line[22];
   char echo_line[22];
+  char state_line[22];
 
   if ((measurement == NULL) || (SSD1315_IsReady() == 0U))
   {
@@ -113,18 +150,116 @@ static uint8_t App_ShowMeasurement(const HCSR04_Result *measurement)
 
   (void)snprintf(echo_line, sizeof(echo_line), "ECHO: %lu US",
                  (unsigned long)measurement->echo_time_us);
+  (void)snprintf(state_line, sizeof(state_line), "STATE: %s",
+                 App_GetTrackingState(measurement));
 
   SSD1315_Clear();
   SSD1315_SetCursor(0U, 0U);
   SSD1315_WriteString("HC-SR04 TEST");
   SSD1315_SetCursor(0U, 16U);
-  SSD1315_WriteString(App_GetStatusText(measurement->status));
-  SSD1315_SetCursor(0U, 32U);
   SSD1315_WriteString(distance_line);
-  SSD1315_SetCursor(0U, 48U);
+  SSD1315_SetCursor(0U, 32U);
   SSD1315_WriteString(echo_line);
+  SSD1315_SetCursor(0U, 48U);
+  SSD1315_WriteString(state_line);
 
   return SSD1315_Update();
+}
+
+/**
+  * @brief  Renders the startup self-test page.
+  */
+static uint8_t App_ShowSelfTestPage(HCSR04_Status sensor_status,
+                                    uint8_t checking)
+{
+  if (SSD1315_IsReady() == 0U)
+  {
+    return 0U;
+  }
+
+  SSD1315_Clear();
+  SSD1315_SetCursor(0U, 0U);
+  SSD1315_WriteString("HC-SR04 TEST");
+  SSD1315_SetCursor(0U, 16U);
+  SSD1315_WriteString((checking != 0U) ? "STATUS: CHECK" :
+                      ((sensor_status == HCSR04_OK) ? "STATUS: OK" :
+                                                     "STATUS: ERROR"));
+  SSD1315_SetCursor(0U, 32U);
+  SSD1315_WriteString("OLED: OK");
+  SSD1315_SetCursor(0U, 48U);
+  SSD1315_WriteString((checking != 0U) ? "SENSOR: CHECK" :
+                                        App_GetSensorStatusText(sensor_status));
+
+  return SSD1315_Update();
+}
+
+/**
+  * @brief  Waits for the OLED and basic ultrasonic hardware checks to pass.
+  */
+static void App_RunStartupSelfTest(void)
+{
+  HCSR04_Status sensor_status;
+
+  for (;;)
+  {
+    if (SSD1315_IsReady() == 0U)
+    {
+      s_oled_ready = SSD1315_Init();
+      if (s_oled_ready == 0U)
+      {
+        static const char oled_error[] = "self_test:OLED_ERR\r\n";
+        (void)HAL_UART_Transmit(&huart1, (const uint8_t *)oled_error,
+                                (uint16_t)(sizeof(oled_error) - 1U),
+                                APP_UART_TIMEOUT_MS);
+        HAL_Delay(APP_OLED_RETRY_PERIOD_MS);
+        continue;
+      }
+    }
+
+    if (App_ShowSelfTestPage(HCSR04_OK, 1U) == 0U)
+    {
+      s_oled_ready = 0U;
+      continue;
+    }
+
+    HCSR04_Init();
+    sensor_status = HCSR04_SelfTest();
+    if (App_ShowSelfTestPage(sensor_status, 0U) == 0U)
+    {
+      s_oled_ready = 0U;
+      continue;
+    }
+
+    if (sensor_status == HCSR04_OK)
+    {
+      static const char self_test_ok[] = "self_test:OK\r\n";
+      (void)HAL_UART_Transmit(&huart1, (const uint8_t *)self_test_ok,
+                              (uint16_t)(sizeof(self_test_ok) - 1U),
+                              APP_UART_TIMEOUT_MS);
+      HAL_Delay(APP_SELF_TEST_OK_TIME_MS);
+      SSD1315_Clear();
+      s_oled_ready = SSD1315_Update();
+      HAL_Delay(APP_PAGE_FLASH_TIME_MS);
+      return;
+    }
+
+    {
+      char self_test_line[48];
+      const int length = snprintf(self_test_line, sizeof(self_test_line),
+                                  "self_test:%s\r\n",
+                                  App_GetSensorStatusText(sensor_status));
+      if (length > 0)
+      {
+        const uint16_t transmit_length =
+            (length < (int)sizeof(self_test_line)) ?
+            (uint16_t)length : (uint16_t)(sizeof(self_test_line) - 1U);
+        (void)HAL_UART_Transmit(&huart1, (uint8_t *)self_test_line,
+                                transmit_length, APP_UART_TIMEOUT_MS);
+      }
+    }
+
+    HAL_Delay(APP_OLED_RETRY_PERIOD_MS);
+  }
 }
 
 /**
@@ -134,20 +269,14 @@ static void App_Init(void)
 {
   static const char banner[] =
       "\r\nHC-SR04 GPIO test ready (USART1 9600 8N1)\r\n";
-  const HCSR04_Result startup_measurement = {HCSR04_OK, 0U, 0U};
-
-  HCSR04_Init();
-  s_oled_ready = SSD1315_Init();
-  s_oled_last_retry_ms = HAL_GetTick();
-
-  if (s_oled_ready != 0U)
-  {
-    s_oled_ready = App_ShowMeasurement(&startup_measurement);
-  }
 
   (void)HAL_UART_Transmit(&huart1, (const uint8_t *)banner,
                           (uint16_t)(sizeof(banner) - 1U),
                           APP_UART_TIMEOUT_MS);
+
+  s_oled_ready = 0U;
+  App_RunStartupSelfTest();
+  s_oled_last_retry_ms = HAL_GetTick();
 }
 
 /**
@@ -166,16 +295,17 @@ static void App_SendUartResult(const HCSR04_Result *measurement)
   if (measurement->status == HCSR04_OK)
   {
     length = snprintf(line, sizeof(line),
-                      "distance_cm:%lu.%01lu,echo_us:%lu,status:%u\r\n",
+                      "distance_cm:%lu.%01lu,echo_us:%lu,status:%u,state:%s\r\n",
                       (unsigned long)(measurement->distance_mm / 10U),
                       (unsigned long)(measurement->distance_mm % 10U),
                       (unsigned long)measurement->echo_time_us,
-                      (unsigned int)measurement->status);
+                      (unsigned int)measurement->status,
+                      App_GetTrackingState(measurement));
   }
   else
   {
     length = snprintf(line, sizeof(line),
-                      "distance_cm:0.0,echo_us:%lu,status:%u\r\n",
+                      "distance_cm:0.0,echo_us:%lu,status:%u,state:--\r\n",
                       (unsigned long)measurement->echo_time_us,
                       (unsigned int)measurement->status);
   }
